@@ -85,9 +85,10 @@ $("#logo").src=ICON;
 const lk=document.createElement("link");lk.rel="icon";lk.href=ICON;document.head.append(lk);
 
 /* language dropdowns: chosen language moves to top, rest stay alphabetical */
-function fill(el,cur){el.innerHTML="";[ALL.find(l=>l[1]==cur),...ALL.filter(l=>l[1]!=cur)].forEach(l=>el.add(new Option(l[0],l[1])));el.value=cur}
-[["src","Persian"],["dst","English"]].forEach(([id,def])=>{const el=$("#"+id);fill(el,ls("dub_"+id)||def);el.onchange=()=>{ls("dub_"+id,el.value);fill(el,el.value)}});
+function fill(el,cur){el.innerHTML="";if(el.id=="src")el.add(new Option("تشخیص خودکار","Auto"));[ALL.find(l=>l[1]==cur),...ALL.filter(l=>l[1]!=cur)].filter(Boolean).forEach(l=>el.add(new Option(l[0],l[1])));el.value=cur}
+[["src","Auto"],["dst","English"]].forEach(([id,def])=>{const el=$("#"+id);fill(el,ls("dub_"+id)||def);el.onchange=()=>{ls("dub_"+id,el.value);fill(el,el.value)}});
 
+const ph=()=>{const d=$("#dst");$("#txt").placeholder="متن برای ترجمه به "+d.options[d.selectedIndex].text+"…"};$("#dst").addEventListener("change",ph);ph();
 const say=(t,e)=>{$("#status").textContent=t||"";$("#status").className=e?"e":""};
 const KEY=()=>prov=="groq"?gkey:key,seq={},mark=(el,c,t)=>{el.className="st "+c;el.textContent=t};
 async function check(p){const el=$("#st-"+p),k=$(p=="groq"?"#gkey":"#key").value.trim(),n=seq[p]=(seq[p]||0)+1,fresh=()=>n==seq[p];
@@ -182,12 +183,12 @@ async function run(j){
      step("در حال ترجمه…");j.tr=await gChat(j.dst,j.orig,j);
     }else{
      step("در حال تشخیص و ترجمه…");
-     const d=await gem(TXT,{contents:[{parts:[{text:`The audio is spoken in ${j.src}. Transcribe it, then translate it into ${j.dst}. Reply only as JSON: {"original":"...","translation":"..."}. If there is no intelligible speech, use empty strings.`},{inline_data:{mime_type:"audio/wav",data:await b64(j.wav)}}]}],generationConfig:{responseMimeType:"application/json"}},j);
+     const d=await gem(TXT,{contents:[{parts:[{text:`${j.src=="Auto"?"Detect the language spoken in the audio.":"The audio is spoken in "+j.src+"."} Transcribe it, then translate it into ${j.dst}. Reply only as JSON: {"original":"...","translation":"..."}. If there is no intelligible speech, use empty strings.`},{inline_data:{mime_type:"audio/wav",data:await b64(j.wav)}}]}],generationConfig:{responseMimeType:"application/json"}},j);
      let r;try{r=JSON.parse(txt(d).replace(/```json|```/g,""))}catch(e){if(e.key!==undefined||/API/.test(e.message))throw e;throw E("پاسخ API قابل خواندن نبود؛ دوباره تلاش کنید.")}
      if(!String(r.translation||"").trim())throw E(NS);
      j.orig=r.original||"";j.tr=String(r.translation).trim();
     }
-   }else{step("در حال ترجمه…");j.tr=g?await gChat("English",j.orig,j):txt(await gem(TXT,{systemInstruction:{parts:[{text:"Translate the user's text into English. Output only the translation."}]},contents:[{parts:[{text:j.orig}]}]},j)).trim()}
+   }else{step("در حال ترجمه…");j.tr=g?await gChat(j.dst,j.orig,j):txt(await gem(TXT,{systemInstruction:{parts:[{text:`Translate the user's text into ${j.dst}. Output only the translation.`}]},contents:[{parts:[{text:j.orig}]}]},j)).trim()}
   }
   if(j.dead)return;
   c.querySelector(".o").textContent=j.orig;c.querySelector(".t").textContent=j.tr;
@@ -202,7 +203,7 @@ async function run(j){
  }}
 
 /* text translate */
-function submit(){const v=$("#txt").value.trim();if(!v)return;if(!KEY()){say("ابتدا کلید API را ثبت کنید.",1);return go("settings")}$("#txt").value="";say();newJob({kind:"t",orig:v})}
+function submit(){const v=$("#txt").value.trim();if(!v)return;if(!KEY()){say("ابتدا کلید API را ثبت کنید.",1);return go("settings")}$("#txt").value="";say();newJob({kind:"t",orig:v,dst:$("#dst").value})}
 $("#tr").onclick=submit;$("#txt").onkeydown=e=>{if(e.key=="Enter"){e.preventDefault();submit()}};
 
 /* hold-to-record */
