@@ -42,7 +42,8 @@ select:focus,input:focus,button:focus-visible{outline:2px solid var(--o);outline
 #ok{width:100%;padding:13px;margin:10px 0 16px}
 .st{font-size:.82rem;color:var(--mu);margin:8px 0 2px}.st::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:#666;margin-inline-end:7px}
 .st.g::before{background:#3ddc84}.st.e::before{background:var(--er)}.st.w::before{background:var(--o)}
-.card{position:relative}.x{position:absolute;top:6px;left:6px;background:none;border:0;color:var(--mu);font-size:1.1rem;cursor:pointer;padding:6px 10px}.o{padding-inline-end:34px}
+.f{display:flex;align-items:center;gap:8px;margin-top:8px}.f .m{flex:1;margin:0}.x{margin-inline-start:auto;flex:none;width:30px;height:30px;padding:0;border-radius:50%;background:none;border:1px solid var(--l);color:var(--mu);font-size:.9rem;cursor:pointer}
+#status.fade{animation:fo 1s forwards}@keyframes fo{0%,55%{opacity:1}to{opacity:0}}
 </style></head><body>
 <div id="app">
 <header><div class="brand"><img id="logo" alt=""><div>Dub<span>Live</span></div></div><button id="gear" aria-label="تنظیمات">&#9881;</button></header>
@@ -89,7 +90,7 @@ function fill(el,cur){el.innerHTML="";if(el.id=="src")el.add(new Option("تشخ�
 [["src","Auto"],["dst","English"]].forEach(([id,def])=>{const el=$("#"+id);fill(el,ls("dub_"+id)||def);el.onchange=()=>{ls("dub_"+id,el.value);fill(el,el.value)}});
 
 const ph=()=>{const d=$("#dst");$("#txt").placeholder="متن برای ترجمه به "+d.options[d.selectedIndex].text+"…"};$("#dst").addEventListener("change",ph);ph();
-const say=(t,e)=>{$("#status").textContent=t||"";$("#status").className=e?"e":""};
+let stt;const say=(t,e,ms)=>{clearTimeout(stt);$("#status").textContent=t||"";$("#status").className=(e?"e ":"")+(ms?"fade":"");if(ms)stt=setTimeout(()=>say(),ms)};
 const KEY=()=>prov=="groq"?gkey:key,seq={},mark=(el,c,t)=>{el.className="st "+c;el.textContent=t};
 async function check(p){const el=$("#st-"+p),k=$(p=="groq"?"#gkey":"#key").value.trim(),n=seq[p]=(seq[p]||0)+1,fresh=()=>n==seq[p];
  if(!navigator.onLine)return mark(el,"e","اینترنت دستگاه قطع است");
@@ -105,7 +106,7 @@ function go(v){$("#home").hidden=v!="home";$("#settings").hidden=v!="settings";c
 ["online","offline"].forEach(ev=>addEventListener(ev,()=>{if(!$("#settings").hidden)checkAll()}));
 $("#gear").onclick=()=>go($("#settings").hidden?"settings":"home");
 $("#ok").onclick=()=>{const p=$("#prov").value,k=$("#key").value.trim(),g=$("#gkey").value.trim();if(!(p=="groq"?g:k))return alert("کلید سرویس انتخاب‌شده را وارد کنید.");
- key=k;gkey=g;prov=p;ls("dub_key",k);ls("dub_gkey",g);ls("dub_prov",p);go("home");say("تنظیمات ذخیره شد.")};
+ key=k;gkey=g;prov=p;ls("dub_key",k);ls("dub_gkey",g);ls("dub_prov",p);go("home");say("تنظیمات ذخیره شد.",0,1000)};
 if(!KEY())go("settings");
 
 /* audio helpers */
@@ -162,13 +163,19 @@ async function gChat(dst,text,j){
  for(const m of list.length?list:GM){try{return await one(m)}catch(e){if(!e.model)throw e}}
  throw E("هیچ مدل متنی برای کلید Groq شما در دسترس نیست (404)."+(list.length?" مدل‌های فعال: "+list.slice(0,5).join(", "):""))}
 /* playback: Gemini returns audio; with Groq the translation is read by the device voice */
-function playJob(j){cur=j;if(j.audio!=="local")return play(j.audio);const ss=window.speechSynthesis;if(!ss)return say("این مرورگر پخش صدا ندارد.",1);
+async function playJob(j,btn){cur=j;
+ if(btn)unlock();
+ if(!j.audio){if(prov=="groq")j.audio="local";else{const o=btn?btn.textContent:"";if(btn){btn.disabled=true;btn.textContent="…"}
+  try{j.audio=await speak(j.tr,j)}catch(e){if(!j.dead)say(e.message,1)}
+  if(btn){btn.disabled=false;btn.textContent=o}if(!j.audio||j.dead)return}}
+ if(j.audio!=="local")return play(j.audio);
+ const ss=window.speechSynthesis;if(!ss)return say("این مرورگر پخش صدا ندارد.",1);
  ss.cancel();const l=CODE[j.dst]||"en",v=ss.getVoices();if(v.length&&!v.some(x=>x.lang.toLowerCase().startsWith(l)))return say("صدای این زبان روی دستگاه نصب نیست؛ فقط متن نمایش داده شد.",1);
  const u=new SpeechSynthesisUtterance(j.tr);u.lang=l;ss.speak(u)}
 
 /* jobs: each card keeps its recording and finished steps, so retry resumes where it failed */
 function newJob(j){j.ac=new AbortController();j.c=document.createElement("div");
- j.c.innerHTML='<button class="x" aria-label="حذف">✕</button><div class="o" dir="auto"></div><div class="t" dir="auto"></div><div class="m"></div>';
+ j.c.innerHTML='<div class="o" dir="auto"></div><div class="t" dir="auto"></div><div class="f"><div class="m"></div><button class="x" aria-label="حذف">✕</button></div>';
  j.c.querySelector(".o").textContent=j.kind=="v"?"🎤 "+j.sn+" ← "+j.dn:j.orig;
  j.c.querySelector(".x").onclick=()=>{j.dead=1;j.ac.abort();if(cur===j){player.pause();try{speechSynthesis.cancel()}catch{}}j.c.remove()};
  $("#feed").append(j.c);j.c.scrollIntoView({behavior:"smooth",block:"end"});run(j)}
@@ -194,7 +201,7 @@ async function run(j){
   c.querySelector(".o").textContent=j.orig;c.querySelector(".t").textContent=j.tr;
   if(j.kind=="v"&&!j.audio){if(g)j.audio="local";else{step("در حال تولید صدا…");j.audio=await speak(j.tr,j)}}
   if(j.dead)return;m.innerHTML="";
-  if(j.audio){const b=document.createElement("button");b.className="sm";b.textContent="🔊 پخش";b.onclick=()=>playJob(j);m.append(b);playJob(j)}
+  {const b=document.createElement("button");b.className="sm";b.textContent="🔊 پخش";b.onclick=()=>playJob(j,b);m.append(b);if(j.audio)playJob(j)}
  }catch(e){
   if(j.dead)return;
   c.className="card err";m.textContent=e.message||"خطای ناشناخته";
