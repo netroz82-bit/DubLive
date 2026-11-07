@@ -143,12 +143,23 @@ async function gcall(path,body,j,json){const r=await req(GAPI+path,{method:"POST
  if(!r.ok){let m="",c="";try{const e=(await r.json()).error;m=e.message||"";c=e.code||""}catch{}const s=r.status,x=E(
   s==401?"کلید Groq نامعتبر است؛ آن را در تنظیمات اصلاح کنید.":s==403?"دسترسی Groq برای این کلید یا منطقه مجاز نیست.":
   s==429?"سقف رایگان Groq پر شده؛ کمی بعد دوباره تلاش کنید.":s>=500?"سرور Groq شلوغ است ("+s+"). دوباره تلاش کنید.":"خطای Groq ("+s+"): "+m);
-  x.key=s==401||s==403;x.model=!!json&&(s==404||/decommission|not.?found/i.test(m+c));throw x}
+  x.key=s==401||s==403;x.model=s==404||/decommission|not.?found/i.test(m+c);throw x}
  return r.json()}
-async function gSTT(wav,lang,j){const f=new FormData();f.append("file",new File([wav],"a.wav",{type:"audio/wav"}));f.append("model","whisper-large-v3-turbo");f.append("response_format","json");f.append("temperature","0");if(CODE[lang])f.append("language",CODE[lang]);return(await gcall("audio/transcriptions",f,j)).text||""}
-async function gChat(dst,text,j){let last;for(const m of GM){try{
- const d=await gcall("chat/completions",JSON.stringify({model:m,temperature:0,messages:[{role:"system",content:`You are a translation engine. Translate the user's message into ${dst}. Output only the translation, nothing else.`},{role:"user",content:text}]}),j,1),t=d.choices?.[0]?.message?.content?.trim();
- if(!t)throw E("پاسخ خالی بود؛ دوباره تلاش کنید.");return t}catch(e){if(!e.model)throw e;last=e}}throw last}
+async function gSTT(wav,lang,j){let last;for(const m of["whisper-large-v3-turbo","whisper-large-v3"]){const f=new FormData();f.append("file",new File([wav],"a.wav",{type:"audio/wav"}));f.append("model",m);f.append("response_format","json");f.append("temperature","0");if(CODE[lang])f.append("language",CODE[lang]);
+ try{return(await gcall("audio/transcriptions",f,j)).text||""}catch(e){if(!e.model)throw e;last=e}}throw last}
+let gok="";
+async function gModels(j){const r=await req(GAPI+"models",{headers:{Authorization:"Bearer "+gkey}},j);
+ if(!r.ok){const x=E(r.status==401?"کلید Groq نامعتبر است؛ آن را در تنظیمات اصلاح کنید.":"خطای Groq ("+r.status+")");x.key=r.status==401;throw x}
+ const ids=((await r.json()).data||[]).filter(x=>x.active!==false).map(x=>x.id).filter(id=>!/whisper|tts|orpheus|guard|playai/i.test(id)),
+ pref=["llama-3.3-70b","llama-3.1-8b","llama-4","gpt-oss-120b","gpt-oss-20b","qwen"];
+ return[...pref.map(q=>ids.find(i=>i.includes(q))).filter(Boolean),...ids].filter((v,i,a)=>a.indexOf(v)==i)}
+async function gChat(dst,text,j){
+ const one=async m=>{const d=await gcall("chat/completions",JSON.stringify({model:m,temperature:0,messages:[{role:"system",content:`You are a translation engine. Translate the user's message into ${dst}. Output only the translation, nothing else.`},{role:"user",content:text}]}),j,1),
+  t=(d.choices?.[0]?.message?.content||"").replace(/<think>[\s\S]*?<\/think>/g,"").trim();if(!t)throw E("پاسخ خالی بود؛ دوباره تلاش کنید.");gok=m;return t};
+ if(gok)try{return await one(gok)}catch(e){if(!e.model)throw e;gok=""}
+ let list=[];try{list=await gModels(j)}catch(e){if(e.key||j.dead)throw e}
+ for(const m of list.length?list:GM){try{return await one(m)}catch(e){if(!e.model)throw e}}
+ throw E("هیچ مدل متنی برای کلید Groq شما در دسترس نیست (404)."+(list.length?" مدل‌های فعال: "+list.slice(0,5).join(", "):""))}
 /* playback: Gemini returns audio; with Groq the translation is read by the device voice */
 function playJob(j){cur=j;if(j.audio!=="local")return play(j.audio);const ss=window.speechSynthesis;if(!ss)return say("این مرورگر پخش صدا ندارد.",1);
  ss.cancel();const l=CODE[j.dst]||"en",v=ss.getVoices();if(v.length&&!v.some(x=>x.lang.toLowerCase().startsWith(l)))return say("صدای این زبان روی دستگاه نصب نیست؛ فقط متن نمایش داده شد.",1);
