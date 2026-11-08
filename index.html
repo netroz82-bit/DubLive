@@ -27,16 +27,16 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 @keyframes s{to{transform:rotate(360deg)}}
 #stage{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
 #stage label{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:.75rem;color:var(--mu)}
-select,input{background:var(--c);color:var(--tx);border:1px solid var(--l);border-radius:12px;padding:11px 8px;font:inherit;width:100%}
-select:focus,input:focus,button:focus-visible{outline:2px solid var(--o);outline-offset:1px}
+select,input,textarea{background:var(--c);color:var(--tx);border:1px solid var(--l);border-radius:12px;padding:11px 8px;font:inherit;width:100%}
+select:focus,input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--o);outline-offset:1px}
 #mic{width:clamp(150px,46vw,190px);height:clamp(150px,46vw,190px);flex:none;border-radius:50%;border:0;background:radial-gradient(circle at 35% 30%,var(--o2),var(--o) 60%,#c24d00);box-shadow:0 0 0 6px #ff7a0022,0 8px 30px #ff7a0055;display:grid;place-items:center;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer;transition:transform .15s}
 #mic svg{width:42%;height:42%;fill:#0b0b0b;pointer-events:none}
 #mic.rec{transform:scale(1.1);animation:p 1.1s infinite}
 @keyframes p{from{box-shadow:0 0 0 0 #ff7a0099}to{box-shadow:0 0 0 36px #ff7a0000}}
 #status{min-height:1.5em;text-align:center;font-size:.85rem;color:var(--mu);padding:8px 0 4px}#status.e{color:var(--er)}
-.bar{display:flex;gap:10px;padding:4px 0 28px}
-.bar input{padding:17px 14px;font-size:1.1rem}
-#tr,#ok{background:var(--o);color:#0b0b0b;font:inherit;font-weight:700;border:0;border-radius:12px;padding:0 26px;cursor:pointer}#tr{font-size:1.05rem}
+.bar{display:flex;align-items:flex-end;gap:10px;padding:4px 0 28px}
+.bar textarea{display:block;padding:17px 14px;font-size:1.1rem;line-height:1.4;resize:none;max-height:150px}
+#tr,#ok{background:var(--o);color:#0b0b0b;font:inherit;font-weight:700;border:0;border-radius:12px;padding:0 26px;cursor:pointer}#tr{font-size:1.05rem;height:62px}
 #settings{padding-top:10px;flex:1;overflow:auto}#settings h2{margin:0 0 16px;color:var(--o)}
 #settings label{display:block;margin:14px 0 8px}.hint{color:var(--mu);font-size:.82rem;line-height:1.8}.hint a{color:var(--o2)}
 #ok{width:100%;padding:13px;margin:10px 0 16px}
@@ -54,7 +54,7 @@ select:focus,input:focus,button:focus-visible{outline:2px solid var(--o);outline
   <button id="mic" aria-label="نگه دارید و صحبت کنید"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg></button>
   <label>زبان خروجی<select id="dst"></select></label>
  </div>
- <div id="low"><div id="status"></div><div class="bar"><input id="txt" dir="auto" placeholder="متن برای ترجمه به انگلیسی…" autocomplete="off"><button id="tr">ترجمه</button></div></div>
+ <div id="low"><div id="status"></div><div class="bar"><textarea id="txt" dir="auto" rows="1" placeholder="متن برای ترجمه به انگلیسی…" autocomplete="off" enterkeyhint="enter"></textarea><button id="tr">ترجمه</button></div></div>
 </section>
 <section id="settings" hidden>
  <h2>تنظیمات</h2>
@@ -201,7 +201,7 @@ async function run(j){
   c.querySelector(".o").textContent=j.orig;c.querySelector(".t").textContent=j.tr;
   if(j.kind=="v"&&!j.audio){if(g)j.audio="local";else{step("در حال تولید صدا…");j.audio=await speak(j.tr,j)}}
   if(j.dead)return;m.innerHTML="";
-  {const b=document.createElement("button");b.className="sm";b.textContent="🔊 پخش";b.onclick=()=>playJob(j,b);m.append(b);if(j.audio)playJob(j)}
+  {const b=document.createElement("button");b.className="sm";b.textContent="🔊 پخش";b.onclick=()=>playJob(j,b);m.append(b);const cp=document.createElement("button");cp.className="sm";cp.textContent="📋 کپی";cp.onclick=()=>copyTxt(j.tr);m.append(cp);if(j.audio)playJob(j)}
  }catch(e){
   if(j.dead)return;
   c.className="card err";m.textContent=e.message||"خطای ناشناخته";
@@ -209,9 +209,10 @@ async function run(j){
   if(e.key){const s=document.createElement("button");s.className="sm";s.textContent="تنظیمات";s.onclick=()=>go("settings");m.append(s)}
  }}
 
+async function copyTxt(t){try{await navigator.clipboard.writeText(t)}catch{const a=document.createElement("textarea");a.value=t;a.style.cssText="position:fixed;opacity:0";document.body.append(a);a.select();let done=false;try{done=document.execCommand("copy")}catch{}a.remove();if(!done)return say("کپی انجام نشد.",1,1500)}say("کپی شد ✓",0,1000)}
 /* text translate */
-function submit(){const v=$("#txt").value.trim();if(!v)return;if(!KEY()){say("ابتدا کلید API را ثبت کنید.",1);return go("settings")}$("#txt").value="";say();newJob({kind:"t",orig:v,dst:$("#dst").value})}
-$("#tr").onclick=submit;$("#txt").onkeydown=e=>{if(e.key=="Enter"){e.preventDefault();submit()}};
+function submit(){const v=$("#txt").value.trim();if(!v)return;if(!KEY()){say("ابتدا کلید API را ثبت کنید.",1);return go("settings")}$("#txt").value="";$("#txt").style.height="";say();newJob({kind:"t",orig:v,dst:$("#dst").value})}
+$("#tr").onclick=submit;$("#txt").onkeydown=e=>{if(e.key=="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();submit()}};$("#txt").oninput=function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight+2,150)+"px"};
 
 /* hold-to-record */
 const mic=$("#mic"),sel=id=>$("#"+id).options[$("#"+id).selectedIndex];
